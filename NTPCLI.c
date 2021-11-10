@@ -2,38 +2,12 @@
  * NTP Client
  * MIT License Copyright (c) 2021 Dave Asta
  *
- * RFC 5905 Packet Header Format
- *   0                   1                   2                   3
- *   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
- *   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *   |LI | VN  |Mode |    Stratum     |     Poll      |  Precision   |
- *   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *   |                         Root Delay                            |
- *   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *   |                         Root Dispersion                       |
- *   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *   |                          Reference ID                         |
- *   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *   +                     Reference Timestamp (64)                  +
- *   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *   +                      Origin Timestamp (64)                    +
- *   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *   +                      Receive Timestamp (64)                   +
- *   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *   +                      Transmit Timestamp (64)                  +
- *   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *   .                    Extension Field 1 (variable)               .
- *   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *   .                    Extension Field 2 (variable)               .
- *   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *   |                          Key Identifier                       |
- *   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *   |                            dgst (128)                         |
- *   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *
- * timestamps represent time since 1900
- *   the offset for Unix (1970) would be timestamp + 2208988800 seconds
- *
+ * Description: Connects to a specified NTP server to get the
+ *              current UTC date and time, and then changes the
+ *              system values (QDAY, QMONTH, QCENTURY, QYEAR, QTIME)
+ * Usage: CALL PGM(NTPCLI) PARM('<ntpserver_url>' '<debug>')
+ *    where: <ntpserver_url> is for example pool.ntp.org
+ *           <debug> is 0=No, 1=Yes; to output extra information
  */
 
 /* ---- INCLUDES ---- */
@@ -45,15 +19,12 @@
 #include <netdb.h>       /* gethostbyname() */
 #include <unistd.h>      /* close() */
 #include <time.h>        /* struct tm */
-#include <xxdtaa.h>      /* QXXCHGDA() */
 
 /* ---- DEFINES ---- */
 #define NTP_PORT     123
 #define NTP_VERSION		4
 #define NTP_MODE     3
 #define TIME_OFFSET		2208988800L
-
-#define DEBUG 1
 
 /* ---- STRUCTURES ---- */
 typedef struct{
@@ -75,28 +46,31 @@ typedef struct{        /* RFC 5905 - Packet Header Format */
 /*
 * Main function
 *
-* Receives one parameter: NTP server address
+* Receives two parameters:
+*                          NTP server address
+*                          display debug messages (0=No, 1=Yes)
 */
 int main(int argc, char *argv[]){
-    int i, udpsock;
+    int i, udpsock, debug, century;
     unsigned int seconds_rcvd;
     time_t seconds_offseted;
-    char ip_str[15];
+    char ip_str[15], oscmd[64];
     struct hostent *hend;
     struct in_addr **addr_list;
     struct sockaddr_in server;
     struct tm *now;
     ntp_packet packet;
-    _DTAA_NAME_T dtaname = {"*LDA      ", "          "};
-    char newdata[14];
 
-    /* Did we receive the mandatory parameter? */
-   	if(argc < 2){
-        printf("ERROR: missing parameter\n\n");
-        printf("usage: ntpcli <ntp_server_address>\n");
-        printf("       e.g.: ntpcli de.pool.ntp.org\n\n");
+    /* Did we receive the mandatory parameters? */
+   	if(argc < 3){
+        printf("ERROR: missing parameters\n\n");
+        printf("usage: CALL PGM(NTPCLI) PARM('<ntpserver_url>' '<debug>')\n");
+        printf("  where: <debug> is 0=No, 1=Yes; for extra info.\n");
+        printf("       e.g.: CALL PGM(NTPCLI) PARM('pool.ntp.org' '1')\n");
         return EXIT_FAILURE;
    	}
+
+    debug = (int)argv[2];
 
    	/* Create a zeroed out variable from the
      * Packet Header Format structure specified in RFC 5905
@@ -109,13 +83,13 @@ int main(int argc, char *argv[]){
      */
    	packet.header = htonl((NTP_VERSION << 27) | (NTP_MODE << 24));
 
-    if(DEBUG) printf("Getting IP from %s\n", argv[1]);
+    if(debug) printf("Getting IP from %s\n", argv[1]);
 
    	/* Get the IP address of the hostname that came in argv */
    	if((hend = gethostbyname(argv[1])) == NULL){
       		printf("ERROR: gethostbyname failed.\n");
       		return EXIT_FAILURE;
-    	}
+    }
 
    	addr_list = (struct in_addr **) hend->h_addr_list;
 
@@ -124,7 +98,7 @@ int main(int argc, char *argv[]){
         strcpy(ip_str, inet_ntoa(*addr_list[i]));
    	}
 
-   	if(DEBUG) printf("Creating UDP socket\n");
+   	if(debug) printf("Creating UDP socket\n");
 
    	/* Create an UDP socket */
     udpsock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -133,7 +107,7 @@ int main(int argc, char *argv[]){
       		return EXIT_FAILURE;
    	}
 
-    if(DEBUG) printf("Connecting to %s\n", ip_str);
+    if(debug) printf("Connecting to %s\n", ip_str);
 
     /* Connect to the server, using IP and Port */
    	server.sin_addr.s_addr = inet_addr(ip_str);
@@ -143,10 +117,10 @@ int main(int argc, char *argv[]){
     if(connect(udpsock, (struct sockaddr *)&server,
                sizeof(server)) < 0){
         printf("ERROR: couldn't connect to %s\n", ip_str);
-      		return EXIT_FAILURE;
+        return EXIT_FAILURE;
    	}
 
-   	if(DEBUG) printf("Sending packet to server\n");
+   	if(debug) printf("Sending packet to server\n");
 
    	/* Send packet to server */
     if(send(udpsock, (char *)&packet, sizeof(packet), 0) < 0){
@@ -154,7 +128,7 @@ int main(int argc, char *argv[]){
       		return EXIT_FAILURE;
    	}
 
-   	if(DEBUG) printf("Receiving response from server\n");
+   	if(debug) printf("Receiving response from server\n");
 
    	/* Receive response from server */
     if(recv(udpsock, (char *)&packet, sizeof(packet), 0) < 0){
@@ -169,30 +143,54 @@ int main(int argc, char *argv[]){
    	packet.xmt.seconds = ntohl(packet.xmt.seconds);
    	seconds_offseted = (time_t)(packet.xmt.seconds - TIME_OFFSET);
    	now = localtime(&seconds_offseted);
-    if(DEBUG){
+    if(debug){
         printf("%02d/%02d/%d %02d:%02d:%02d\n",
                 now->tm_mday,
                 now->tm_mon + 1,
                 now->tm_year + 1900,
                 now->tm_hour,
                 now->tm_min,
-             			now->tm_sec);
+             	now->tm_sec);
     }
-
-    /* Put received date/time in *LDA */
-    sprintf(newdata, "%02d%02d%d%02d%02d%02d",
-            now->tm_mday,
-            now->tm_mon + 1,
-            now->tm_year + 1900,
-            now->tm_hour,
-            now->tm_min,
-         			now->tm_sec);
-    QXXCHGDA(dtaname, 1, 14, newdata);
 
    	/* Close the socket */
    	close(udpsock);
 
-   	if(DEBUG) printf("All done!\n");
-   	
+    /* Change QDAY */
+    sprintf(oscmd, "CHGSYSVAL SYSVAL(QDAY) VALUE('%02d')",
+              now->tm_mday);
+    system(oscmd);
+    if(debug) printf("%s\n", oscmd);
+
+    /* Change QMONTH */
+    sprintf(oscmd, "CHGSYSVAL SYSVAL(QMONTH) VALUE('%02d')",
+              now->tm_mon + 1);
+    system(oscmd);
+    if(debug) printf("%s\n", oscmd);
+
+    /* Change QCENTURY */
+    if((now->tm_year + 1900) >= 2000) century = 1;
+    else century = 0;
+    sprintf(oscmd, "CHGSYSVAL SYSVAL(QCENTURY) VALUE('%d')", century);
+    system(oscmd);
+    if(debug) printf("%s\n", oscmd);
+
+    /* Change QYEAR */
+    sprintf(oscmd, "CHGSYSVAL SYSVAL(QYEAR) VALUE('%d')",
+              (now->tm_year + 1900) % 100);
+    system(oscmd);
+    if(debug) printf("%s\n", oscmd);
+
+    /* Change QTIME */
+    sprintf(oscmd, "CHGSYSVAL SYSVAL(QTIME) VALUE('%02d%02d%02d')",
+              now->tm_hour,
+              now->tm_min,
+              now->tm_sec);
+    system(oscmd);
+    if(debug) printf("%s\n", oscmd);
+
+   	if(debug) printf("All done!\n");
+
    	return EXIT_SUCCESS;
 }	
+

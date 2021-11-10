@@ -4,21 +4,15 @@ OS/400 V4R5 lacks an NTP client, so here is one.
 
 I followed the specifications provided in [RFC 5905](https://www.rfc-editor.org/info/rfc5905) for the **N**etwork **T**ime **P**rotocol Version 4.
 
-NTP servers don't return the UTC offset, hence the QUTCOFFSET value is not changed. On my AS/400, I set it up as +00:00
+NTP servers don't return the UTC offset, hence the *QUTCOFFSET* value still needs to be maintaned manually. Or use https://github.com/PoC-dev/as400-autodst
 
-## Components 
+This new version consists only of a C program, that connects to the specified NTP server and changes the system values QDAY, QMONTH, QCENTURY, QYEAR, QTIME.
 
-### NTPCLIC (CLP)
+Call it with:
 
-- It calls NTPCLI, passing *pool.ntp.org* as a parameter. 
-- It reads the new date and time from the *LDA, that was changed by NTPCLI.
-- changes (CHGSYSVAL) the values of QDAY, QMONTH, QYEAR and QTIME.
+```CALL PGM(NTPCLI) PARM('<ntpserver_url>' '<debug_val>')```
 
-### NTPCLI (C)
+where: 
 
-It connects to an NTP server address received by parameter, retrieves the date and time and puts it in the *LDA, in the format DDMMYYYYHHMMSS.
-
-There is a constant *DEBUG*, that can be set to 1 or 0. If set to 1, it will output some statements to know what the program is doing (e.g. create socket, connect to socket, close socket, retrieved date/time). If set to 0, no output will be printed out.
-
-I have it as 1 on my system, so after the Job Scheduler has run it, I can see the spool file.
-
+* *<ntpserver_url>* is for example pool.ntp.org
+* *<debug_val>* if set to 1, it will output some statements to know what the program is doing (e.g. create socket, connect to socket, close socket, retrieved date/time). If set to 0, no output will be printed out.
