@@ -5,8 +5,8 @@
  * Description: Connects to a specified NTP server to get the
  *              current UTC date and time, and then changes the
  *              system values (QDAY, QMONTH, QCENTURY, QYEAR, QTIME)
- * Usage: CALL PGM(NTPCLI) PARM('<ntpserver_url>' '<debug>')
- *    where: <ntpserver_url> is for example pool.ntp.org
+ * Usage: CALL PGM(NTPCLI) PARM('<ntpserver_ip/hostname>' '<debug>')
+ *    where: <ntpserver_ip/hostname> is for example pool.ntp.org
  *           <debug> is 0=No, 1=Yes; to output extra information
  */
 
@@ -64,7 +64,7 @@ int main(int argc, char *argv[]){
     /* Did we receive the mandatory parameters? */
    	if(argc < 3){
         printf("ERROR: missing parameters\n\n");
-        printf("usage: CALL PGM(NTPCLI) PARM('<ntpserver_url>' '<debug>')\n");
+        printf("usage: CALL PGM(NTPCLI) PARM('<ntpserver_ip/hostname>' '<debug>')\n");
         printf("  where: <debug> is 0=No, 1=Yes; for extra info.\n");
         printf("       e.g.: CALL PGM(NTPCLI) PARM('pool.ntp.org' '1')\n");
         return EXIT_FAILURE;
