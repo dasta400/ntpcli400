@@ -10,9 +10,9 @@ This new version consists only of a C program, that connects to the specified NT
 
 Call it with:
 
-```CALL PGM(NTPCLI) PARM('<ntpserver_url>' '<debug_val>')```
+```CALL PGM(NTPCLI) PARM('<ntpserver_ip/hostname>' '<debug_val>')```
 
 where: 
 
-* *<ntpserver_url>* is for example pool.ntp.org
+* *<ntpserver_ip/hostname>* is for example pool.ntp.org
 * *<debug_val>* if set to 1, it will output some statements to know what the program is doing (e.g. create socket, connect to socket, close socket, retrieved date/time). If set to 0, no output will be printed out.
